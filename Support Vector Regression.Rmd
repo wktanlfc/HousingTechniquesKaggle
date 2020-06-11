@@ -1,0 +1,427 @@
+---
+title: "Housing Advanced Regression Techniques"
+author: Tan Wee Kiang
+output: 
+  revealjs::revealjs_presentation:
+    self_contained: false
+    reveal_plugins: ["notes", "menu"]
+    theme: sky
+    code_folding: hide
+    center: true
+    reveal_options:
+      chalkboard: 
+        theme: sky
+        toggleNotesButton: true
+      menu:
+        numbers: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+  
+## A self embarked project.
+
+- Competition based on Kaggle
+- Techniques used : LASSO, Clustering, Linear Regression, PCA
+
+## About the Data..
+
+- Full Data contains 1.4k data points, with various missing values
+- 80 **Variables**, Categorical and Numeric
+- Objective is to predict **prices** of each house
+
+```{r installations, echo = FALSE, message = FALSE}
+
+# sa(uba)mple random rows from the itemset
+library(dplyr)
+library(readr)
+library(qdapTools)
+library(tidyverse)
+library(ggplot2)
+library(ggcorrplot)
+library(FactoMineR) # for PCA Part 1 
+library(kableExtra) # for nice tables
+# alternative plot with ggplot for correlation 
+library(ggplot2)
+library(reshape) # to generate input for the plot use melt function
+#install.packages("forecast")
+library(forecast)
+library(plotly)
+library(GGally)
+library(rlang)
+library(ggpubr)
+library(caret)
+```
+
+
+```{r pressure , echo = FALSE}
+
+train <- read.csv("train.csv") 
+test <- read.csv("test.csv")
+
+# removing redundant index id
+redundant.index <- c(1)
+raw1 <- select(train, -redundant.index)
+raw2<- select(test, -redundant.index)
+
+#summary(raw1)
+#str(raw1)
+
+
+```
+
+```{r Data Exploration, echo = FALSE }
+# DATA CLEANING
+#missing values heat map
+#heatmap(1 * is.na(raw1), Rowv = NA, Colv = NA)
+# heatmap(1 * is.na(mining), Rowv = NA, Colv = NA)
+
+# check LotFrontage, GarageYrBlt, Alley, All different BSMTs MAsVnrType, Fireplace, PoolQC, Fence, Mufe
+#x <- filter(raw1, is.na(LotFrontage) == T )
+#plot(raw1$LotFrontage,mining$X1stFlrSF ) # dont use regressive imputation. Can be a property not being direc
+#plot(raw1$LotFrontage, mining$SalePrice)
+#options(scipen = 999) # no decimals
+#ggplot(raw1, aes(x = LotFrontage, y = SalePrice, color = "red")) + geom_point()
+
+#ggplot(mining, aes(x = LotFrontage, y = LotArea, color = "red")) + geom_point()
+#ggplot(mining, aes(x = LotFrontage, y = X1stFlrSF, color = "red")) + geom_point()
+#regressiveimpute <- lm(LotFrontage~ X1stFlrSF+LotArea+TotalBsmtSF+GarageArea+MSSubClass+GrLivArea+PoolArea, data = mining)
+#summary(regressiveimpute)
+#g <- filter(mining, is.na(MasVnrType) == T ) # MasVnrType and Area, impute both none.
+#h <- filter(mining, is.na(Electrical) == T)
+#x <- filter(replaced, is.na(GarageType))
+
+# Cleaning Training Set and Formatting
+replaced_clean <- raw1 %>% mutate(replace_alley = ifelse(is.na(Alley), 0, Alley),
+                    replace_fireplaceQu = ifelse(is.na(FireplaceQu), 0, FireplaceQu),
+                    replace_poolQC = ifelse(is.na(PoolQC), 0, PoolQC),
+                    replace_MiscFeature = ifelse(is.na(MiscFeature), 0, MiscFeature),
+                    replace_Fence = ifelse(is.na(Fence), 0, Fence),
+                    replace_GarageType = ifelse(is.na(GarageType), 0, GarageType),
+                    replace_GarageFinish = ifelse(is.na(GarageFinish), 0, GarageFinish),
+                    replace_GarageQual = ifelse(is.na(GarageQual), 0, GarageQual),
+                    replace_GarageCond = ifelse(is.na(GarageCond), 0, GarageCond),
+                    replace_BsmtFinType1 = ifelse(is.na(BsmtFinType1), 0, BsmtFinType1),
+                    replace_BsmtFinType2 = ifelse(is.na(BsmtFinType2), 0, BsmtFinType2),
+                    replace_BsmtQual = ifelse(is.na(BsmtQual), 0, BsmtQual),
+                    replace_BsmtCond = ifelse(is.na(BsmtCond), 0, BsmtCond),
+                    replace_BsmtExposure = ifelse(is.na(BsmtExposure), 0, BsmtExposure),
+                    replace_LotFrontage = ifelse(is.na(LotFrontage), 0, LotFrontage), #impute 0, regressive imputation not suitable
+                    replace_MasVnrType = ifelse(is.na(MasVnrType), 0, MasVnrType),
+                    replace_MasVnrArea = ifelse(is.na(MasVnrArea), 0, MasVnrArea)
+                    )
+mining <- replaced_clean %>% select(-FireplaceQu, -PoolQC, -MiscFeature, -Fence, -Alley, -GarageType, - GarageFinish, -GarageCond, -GarageQual, -BsmtExposure,
+                                    -BsmtQual, -BsmtCond, -BsmtFinType1, -BsmtFinType2, -LotFrontage, -GarageYrBlt, -MasVnrType, -MasVnrArea)
+
+
+
+# Cleaning Testing Set, and Formatting to fit model
+replaced_clean2 <- raw2 %>% mutate(replace_alley = ifelse(is.na(Alley), 0, Alley),
+                                  replace_fireplaceQu = ifelse(is.na(FireplaceQu), 0, FireplaceQu),
+                                  replace_poolQC = ifelse(is.na(PoolQC), 0, PoolQC),
+                                  replace_MiscFeature = ifelse(is.na(MiscFeature), 0, MiscFeature),
+                                  replace_Fence = ifelse(is.na(Fence), 0, Fence),
+                                  replace_GarageType = ifelse(is.na(GarageType), 0, GarageType),
+                                  replace_GarageFinish = ifelse(is.na(GarageFinish), 0, GarageFinish),
+                                  replace_GarageQual = ifelse(is.na(GarageQual), 0, GarageQual),
+                                  replace_GarageCond = ifelse(is.na(GarageCond), 0, GarageCond),
+                                  replace_BsmtFinType1 = ifelse(is.na(BsmtFinType1), 0, BsmtFinType1),
+                                  replace_BsmtFinType2 = ifelse(is.na(BsmtFinType2), 0, BsmtFinType2),
+                                  replace_BsmtQual = ifelse(is.na(BsmtQual), 0, BsmtQual),
+                                  replace_BsmtCond = ifelse(is.na(BsmtCond), 0, BsmtCond),
+                                  replace_BsmtExposure = ifelse(is.na(BsmtExposure), 0, BsmtExposure),
+                                  replace_LotFrontage = ifelse(is.na(LotFrontage), 0, LotFrontage), #impute 0, regressive imputation not suitable
+                                  replace_MasVnrType = ifelse(is.na(MasVnrType), 0, MasVnrType),
+                                  replace_MasVnrArea = ifelse(is.na(MasVnrArea), 0, MasVnrArea)
+)
+
+mining2 <- replaced_clean2 %>%
+  select(-FireplaceQu, -PoolQC, -MiscFeature, -Fence, -Alley, -GarageType, - GarageFinish, -GarageCond, -GarageQual, -BsmtExposure, -BsmtQual, -BsmtCond, -BsmtFinType1, -BsmtFinType2, -LotFrontage, -GarageYrBlt, -MasVnrType, -MasVnrArea)
+
+
+#missing values heat map
+#heatmap(1 * is.na(mining), Rowv = NA, Colv = NA)
+
+```
+
+
+# Firstly, transform prices.
+
+- Prices are very skewed, right tailed, it's best to apply a log transformation first.
+```{r Data Visualisation, echo = TRUE, message = FALSE}
+# transforming the price
+options(scipen = 999)
+ori <- ggplot(mining, aes(x = SalePrice)) +
+  geom_histogram(col = "black", fill = "red") +
+  ggtitle("Original Selling Price") 
+
+mining1 <- mining %>% mutate("logSalesPrice" = log(SalePrice))
+SalePx <- data.frame(select(mining1, SalePrice)) #storing for later.
+logSalesPx <- data.frame(select(mining1, logSalesPrice))
+```
+
+## Preparing Response Variable for Prediction.
+```{r, message = FALSE}
+# Transformed Prices.
+options(scipen = 0)
+trans <- ggplot(mining1, aes(x = logSalesPrice)) + geom_histogram(col = "black", fill = "blue") + ggtitle("Transformed Selling Price")
+
+ggarrange(
+  ori, trans, labels = c("A", "B"),
+  common.legend = TRUE, legend = "bottom"
+  )
+```
+
+
+```{r Data Visuals}
+#Cleaning Training Set 
+Train.Clean <- select(mining1, -logSalesPrice, -SalePrice, -YrSold, -MoSold, -YearBuilt, -YearRemodAdd)
+noncat.index <- c(1,3, 15:16, 24:27, 32:41, 43, 45:47, 49:55, 58:74)
+numericals <- Train.Clean[,noncat.index]
+categoricals <- Train.Clean[,-noncat.index]
+
+
+id <- as.data.frame(select(train, redundant.index))
+
+nw.train <- cbind(id, Train.Clean, SalePx)
+
+
+p <- nw.train %>% ggplot(aes(y = SalePrice ,  x = SaleCondition, fill = SaleCondition)) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By Condition")
+
+l <- nw.train %>% ggplot(aes(y = SalePrice ,  x = Foundation, fill = Foundation)) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By Foundation") 
+
+o <- nw.train %>% ggplot(aes(y = SalePrice ,  x = SaleType , fill = SaleType )) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By SaleType ") 
+
+
+t <- nw.train %>% ggplot(aes(y = SalePrice ,  x = ExterCond , fill = ExterCond )) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By ExterCond") 
+
+```
+
+
+
+# How does the data look?
+```{r vis, eval = TRUE}
+ggplotly(p)
+```
+
+
+## 
+```{r , eval = TRUE}
+ggplotly(l)
+```
+
+###
+```{r , eval = TRUE}
+ggplotly(o)
+
+```
+
+####
+```{r, eval = TRUE}
+ggplotly(t)
+```
+---
+
+## After outlier removal..
+```{r Outlier Removal, echo = FALSE}
+
+# Removing Outliers from data
+outliers <- nw.train %>% filter((SaleCondition == "Abnorml" & SalePrice > 258000) |
+                      (SaleCondition == "Alloca" & SalePrice > 275000) |
+                      (SaleCondition == "Family" & SalePrice > 235000) |
+                      (SaleCondition == "Normal" & SalePrice > 317000) | 
+                      (SaleCondition == "Partial" & SalePrice > 556581)) %>% select(Id) %>% as.list()
+
+
+outliers.2 <- nw.train %>% filter((Foundation == "BrkTil" & SalePrice > 474999) |
+                      (Foundation == "CBlock" & SalePrice > 344000) |
+                      (Foundation == "PConc" & SalePrice > 396000) ) %>% select(Id) %>% as.list()
+nw.train <- nw.train %>% filter(!Id %in% outliers$Id) 
+nw.train <- nw.train %>% filter(!Id %in% outliers.2$Id)
+p2 <- nw.train %>% ggplot(aes(y = SalePrice ,  x = SaleCondition, fill = SaleCondition)) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By Condition")
+
+l2 <- nw.train %>% ggplot(aes(y = SalePrice ,  x = Foundation, fill = Foundation)) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By Foundation") 
+
+o2 <- nw.train %>% ggplot(aes(y = SalePrice ,  x = SaleType , fill = SaleType )) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By SaleType ") 
+
+
+t2 <- nw.train %>% ggplot(aes(y = SalePrice ,  x = ExterCond , fill = ExterCond )) + 
+  geom_boxplot()  +
+  ggtitle("Boxplot of Prices: By ExterCond")
+
+```
+---
+
+## Comparatively less, cleaner for analysis.
+```{r}
+ggarrange(
+  p2, l2, o2, t2,labels = c("A", "B", "C", "D"),
+  common.legend = TRUE, legend = "bottom"
+  )
+```
+
+
+---
+```{r, eval = FALSE}
+# Build Corrleational Matrix
+cor.mat <- round(cor(numericals),2) # rounded correlation matrix
+melted.cor.mat <- melt(cor.mat)
+ggplot(melted.cor.mat, aes(x = X1, y = X2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(x = X1, y = X2, label = value))
+```
+
+
+```{r, echo = FALSE}
+
+Test.Clean <- select(mining2, -YrSold, -MoSold, -YearBuilt, -YearRemodAdd)
+noncat.index <- c(1,3, 15:16, 24:27, 32:41, 43, 45:47, 49:55, 58:74)
+numericals2 <- Test.Clean[,noncat.index]
+categoricals2 <- Test.Clean[,-noncat.index]
+
+```
+
+# A Linear Dimension Reduction Method would be <p style="color:red">Principal Compenent Analysis</p>.
+ - Choose dimensions that explain the most variablility
+ - Select variables that explain the most of these dimensions
+```{r, echo = FALSE}
+#### NOTE NOT NORMALISED YET! REVIEW DATA! 
+noncat.index <- c(1,3, 15:16, 24:27, 32:41, 43, 45:47, 49:55, 58:74)
+sale.price <- nw.train %>% select(SalePrice) %>% log() %>% as.data.frame()
+id <-  nw.train %>% select(Id) %>% as.data.frame()
+nw.train <- select(nw.train, -Id, -SalePrice)
+numericals <- nw.train[,noncat.index]
+
+categoricals <- nw.train[,-noncat.index]
+
+normalisenumericals <- as.data.frame(sapply(numericals, scale))
+pcs <-prcomp(na.omit(normalisenumericals))
+summary(pcs)
+kable(pcs$rot[,1:28]) %>% 
+    kable_styling(bootstrap_options = "striped", full_width = F, position = "center") %>%
+  scroll_box(width = "500px", height = "300px")
+
+# keeping 21 numerical orthegonal variables to used -  based on 28 PCA dimensions that explain 91% variability.
+predictorindex <- c(3,6,8,7,35,28,29,30,18,23,25,26,27,34,2,24,15,33,17,21)
+predictingdata <- numericals[predictorindex]
+
+Fulltrain.data <- cbind(predictingdata, sale.price)
+#Fulltrain.data <- Fulltrain.data %>% filter(!Id %in% outliers$Id)
+
+
+# Linear Regression Model 1
+projection.mlm <- lm(Fulltrain.data$SalePrice~.  , data = Fulltrain.data )
+summary(projection.mlm)
+
+
+# predicting results
+testing <- numericals2[predictorindex]
+
+# DATA CLEANING HAXXXX
+summary(testing)
+## Replaces NaN, Inf, and -Inf with NA or 0,( change the last item) for all numeric variables in the data!
+testing <- testing %>%
+mutate_if(is.numeric, list(~replace(., !is.finite(.), 0)))
+
+
+projection.mlm.bwe <- step(projection.mlm )
+summary(projection.mlm.bwe)  #Shown to drop Gender as predicted first.
+#projection.mlm.bwe.pred <- predict(projection.mlm.bwe, test.mlm)
+testingresults <- as.data.frame(exp(predict(projection.mlm.bwe, testing)))
+
+
+
+ids <- as.data.frame(select(test, redundant.index))
+predictions <- cbind(ids, testingresults)
+colnames(predictions)[2] <- "SalePrice"
+write.csv(predictions, file = "Predictions-Tan Wee Kiang.csv",row.names = F)
+
+```
+---
+
+# How did Linear Regression fare?
+
+## Results
+- Decent, but few points that are really off. 
+- RMSE of 0.17 on Kaggle.
+```{r Linear Regression Results, echo=TRUE, message = FALSE}
+
+train.pred <- as.data.frame(exp(predict(projection.mlm.bwe, Fulltrain.data))) 
+
+
+train.errors <- exp(sale.price) - train.pred # trained results - trained projections = residual error
+train.errors <- data.frame("ResidualErrors" = train.errors) # coercing into data frame
+
+train.results <- cbind.data.frame(train.pred, 
+                            exp(sale.price),
+                            train.errors,  # unexplained errors, un-fitted errors.
+                            id) 
+
+
+colnames(train.results)[3] <- "Residuals"
+colnames(train.results)[1] <- "Prediction"
+# str(train.results)
+
+```
+
+###
+
+```{r}
+options(scipen = 999)
+train.results %>% ggplot() +
+  geom_point(aes(y = Residuals,  x = Id)) +
+  ggtitle("Residual Errors 1st Model: Linear Regression")
+
+```
+---
+
+# With 80 variables, theres are better ways for dimension reduction.
+## LASSO Regression for Variable Selection
+- <h1 style="font-size:80%;">**Machine learning** method to select best few variables, based on lambda.
+- <h1 style="font-size:80%;">Reduce the need for manually addressing **multicollinearity**.
+```{r Lasso Regression Method, echo = FALSE, message= FALSE}
+library(glmnet)
+library(coefplot)
+
+eq <- as.formula("SalePrice ~ OverallQual + MSSubClass + LotArea + OverallCond +BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF +TotalBsmtSF +X1stFlrSF +X2ndFlrSF +  LowQualFinSF + GrLivArea + BsmtFullBath + BsmtHalfBath + FullBath + HalfBath + BedroomAbvGr +KitchenAbvGr + TotRmsAbvGrd +Fireplaces + GarageCars+ GarageArea + WoodDeckSF + OpenPorchSF   +EnclosedPorch  +X3SsnPorch + ScreenPorch  + PoolArea + MiscVal + replace_alley + replace_fireplaceQu + replace_poolQC+ replace_MiscFeature+ replace_Fence  + replace_GarageType+ replace_GarageFinish+ replace_GarageQual  + replace_GarageCond+ replace_BsmtFinType1: + replace_BsmtFinType2+ replace_BsmtQual + replace_BsmtCond+ replace_BsmtExposure+ replace_LotFrontage :+ replace_MasVnrType + replace_MasVnrArea + MSZoning  + LotShape + LandContour + LotConfig + LandSlope + Neighborhood  + Condition1+ Condition2+ BldgType + HouseStyle+ RoofStyle  + RoofMatl   + Exterior1st + Exterior2nd + ExterQual+ ExterCond  + Foundation+ Heating + HeatingQC    +KitchenQual+Functional  +SaleType+SaleCondition - 1")
+
+train.data <- cbind(Train.Clean, logSalesPx) %>% rename(SalePrice = logSalesPrice)
+trctrl <- trainControl(method = "repeatedcv", number = 2, repeats = 2)
+summary(train.data)
+
+svmlinear <- train(SalePrice ~ OverallQual +TotalBsmtSF + BsmtUnfSF + replace_GarageType + PoolArea +KitchenAbvGr + WoodDeckSF +X3SsnPorch   + ScreenPorch + LotArea + OpenPorchSF + FullBath + BedroomAbvGr+ GarageCars, data = train.data, 
+                  trControl = trctrl,
+                   method = "svmLinear",
+                  preProcess = c("center","scale"),
+                  tuneLength = 20)
+                  
+svmlinear
+svm.results <- exp(predict(svmlinear, newdata = testing))
+predictions.svm <- cbind(ids, svm.results) 
+colnames(predictions.svm)[2] <- "SalePrice"
+write.csv(predictions.svm, file = "Predictions.svm-Tan Wee Kiang.csv",row.names = F)
+
+```
+
+
+
+
+
+
