@@ -16,3 +16,6 @@ Future Updates include dplyr updates on column indexing (For better code interpr
 - colwise, rowwise.
 
 Leaderboard RSME as of 2019 : 53rd Percentile
+SVM 1st : 0.169
+Lasso Regression : 0.142
+Multiple Linear Regression: 0.172
