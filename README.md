@@ -1,8 +1,6 @@
 # HousingTechniquesKaggle
 Self embarked regression applications
 
-Regression applications on a dataset.
-
 Wrangling cleaning and Visualisations done via R
 Methods include:
 Principal Component Analysis (R)
@@ -16,6 +14,8 @@ Future Updates include dplyr updates on column indexing (For better code interpr
 - colwise, rowwise.
 
 Leaderboard RSME as of 2019 : 53rd Percentile
-SVM 1st : 0.169
-Lasso Regression : 0.142
-Multiple Linear Regression: 0.172
+SVM 1st : 0.169 RMSE
+
+Lasso Regression : 0.142 RMSE
+
+Multiple Linear Regression: 0.172 RMSE
