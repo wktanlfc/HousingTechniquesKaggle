@@ -53,7 +53,7 @@ library(plotly)
 library(GGally)
 library(rlang)
 library(ggpubr)
-library(revealjs)
+library(caret)
 ```
 
 
@@ -72,9 +72,6 @@ raw2<- select(test, -redundant.index)
 
 
 ```
-
-
-
 
 ```{r Data Exploration, echo = FALSE }
 # DATA CLEANING
@@ -152,6 +149,7 @@ mining2 <- replaced_clean2 %>%
 
 
 # Firstly, transform prices.
+
 - Prices are very skewed, right tailed, it's best to apply a log transformation first.
 ```{r Data Visualisation, echo = TRUE, message = FALSE}
 # transforming the price
@@ -271,7 +269,7 @@ t2 <- nw.train %>% ggplot(aes(y = SalePrice ,  x = ExterCond , fill = ExterCond 
 ```
 ---
 
-## Comparatively less outliers, cleaner for analysis.
+## Comparatively less, cleaner for analysis.
 ```{r}
 ggarrange(
   p2, l2, o2, t2,labels = c("A", "B", "C", "D"),
@@ -304,13 +302,12 @@ categoricals2 <- Test.Clean[,-noncat.index]
  - Choose dimensions that explain the most variablility
  - Select variables that explain the most of these dimensions
 ```{r, echo = FALSE}
-#### NOTE data not normalised yet.
+##Review Data
 noncat.index <- c(1,3, 15:16, 24:27, 32:41, 43, 45:47, 49:55, 58:74)
 sale.price <- nw.train %>% select(SalePrice) %>% log() %>% as.data.frame()
 id <-  nw.train %>% select(Id) %>% as.data.frame()
 nw.train <- select(nw.train, -Id, -SalePrice)
 numericals <- nw.train[,noncat.index]
-
 categoricals <- nw.train[,-noncat.index]
 
 normalisenumericals <- as.data.frame(sapply(numericals, scale))
@@ -328,16 +325,13 @@ Fulltrain.data <- cbind(id, predictingdata, sale.price)
 #Fulltrain.data <- Fulltrain.data %>% filter(!Id %in% outliers$Id)
 
 
-
 # Linear Regression Model 1
 projection.mlm <- lm(Fulltrain.data$SalePrice~.  , data = Fulltrain.data )
 summary(projection.mlm)
-
-
 # predicting results
 testing <- numericals2[predictorindex]
 
-# DATA CLEANING HAXXXX
+# Data Cleaning
 summary(testing)
 ## Replaces NaN, Inf, and -Inf with NA or 0,( change the last item) for all numeric variables in the data!
 testing <- testing %>%
@@ -377,7 +371,6 @@ train.results <- cbind.data.frame(train.pred,
                             train.errors,  # unexplained errors, un-fitted errors.
                             id) 
 
-
 colnames(train.results)[3] <- "Residuals"
 colnames(train.results)[1] <- "Prediction"
 # str(train.results)
@@ -405,6 +398,7 @@ library(coefplot)
 
 eq <- as.formula("SalePrice ~ OverallQual + MSSubClass + LotArea + OverallCond +BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF +TotalBsmtSF +X1stFlrSF +X2ndFlrSF +  LowQualFinSF + GrLivArea + BsmtFullBath + BsmtHalfBath + FullBath + HalfBath + BedroomAbvGr +KitchenAbvGr + TotRmsAbvGrd +Fireplaces + GarageCars+ GarageArea + WoodDeckSF + OpenPorchSF   +EnclosedPorch  +X3SsnPorch + ScreenPorch  + PoolArea + MiscVal + replace_alley + replace_fireplaceQu + replace_poolQC+ replace_MiscFeature+ replace_Fence  + replace_GarageType+ replace_GarageFinish+ replace_GarageQual  + replace_GarageCond+ replace_BsmtFinType1: + replace_BsmtFinType2+ replace_BsmtQual + replace_BsmtCond+ replace_BsmtExposure+ replace_LotFrontage :+ replace_MasVnrType + replace_MasVnrArea + MSZoning  + LotShape + LandContour + LotConfig + LandSlope + Neighborhood  + Condition1+ Condition2+ BldgType + HouseStyle+ RoofStyle  + RoofMatl   + Exterior1st + Exterior2nd + ExterQual+ ExterCond  + Foundation+ Heating + HeatingQC + Electrical   +KitchenQual+Functional  +SaleType+SaleCondition - 1")
 
+
 # Keeping LogPrices for predicting
 train.clean <- nw.train
 # normalise numerical data 
@@ -413,7 +407,6 @@ numericals <- train.clean[,noncat.index] %>%
 categoricals <- train.clean[,-noncat.index]
 train.clean <- cbind(numericals, categoricals, sale.price)
 train.clean <- mutate(train.clean, Test = 0)
-
 
 # Prepping Test Data
 noncat.index <- c(1,3, 15:16, 24:27, 32:41, 43, 45:47, 49:55, 58:74)
@@ -424,7 +417,7 @@ categoricals2 <- test.clean[,-noncat.index]
 test.clean <- cbind( numericals2, categoricals2)
 test.clean <- mutate(test.clean, sale.price = 0, Test = 1)
 colnames(test.clean)[75] <- "SalePrice"
-fullset <- rbind(train.clean, test.clean) 
+fullset <- rbind(train.clean) 
 
 # Coerce into Matrix form for glmnet
 x <- model.matrix(eq , data = fullset[fullset$Test == 0,])  # to remove the intercept
@@ -432,10 +425,10 @@ y <- model.frame(eq  , data = fullset[fullset$Test == 0,])[ ,"SalePrice"]
 
 ```
 ---
-## Out of **195** variables, the best model would pick between 140 down to 70 variables.
+## Out of **195** variables, the model determined the best model would range from 140 down to 70 variables.
 ```{r}
 set.seed(466846)
-fit3 <- cv.glmnet(y = y,  # Finish this (5 lines)
+fit3 <- cv.glmnet(y = y,  
                   x = x,
                   family = "gaussian", # binomial for binary, poisoon for for numeric
                   alpha = 1,
@@ -447,8 +440,9 @@ coef(fit3, s = "lambda.min")
 ```
 
 
+#
 - From these variables, we can pick those with **significant** lambda values for our improved model.
-```{r, eval = TRUE}
+```{r}
 # coefplot(fit3, lambda="lambda.1se", sort='magnitude') 
  coefplot(fit3, lambda='lambda.min', sort='magnitude') 
 ```
@@ -460,22 +454,22 @@ coef(fit3, s = "lambda.min")
 ```
 
 ```{r}
-# na.pass has model.matrix retain NA values (so the # of rows is constant)
-xvals <- model.matrix(eq , data = fullset[fullset$Test == 1,] , na.action = na.pass)
-
-lasso.pred <- predict(fit3, xvals, s = 'lambda.min',
-  type = "response")
-lasso.results <- lasso.pred %>% as.data.frame() %>% exp()
-# res <- cbind(ids, lasso.results)
-# Make predictions using testing data
-#lasso.pred <- predict(fit3, xvals,  type ="response", s = "lambda.min")
+# Lasso Reduced Regression Variables
+eq2 <- as.formula("SalePrice ~ OverallQual + MSSubClass + LotArea + OverallCond +BsmtFinSF1 + BsmtFinSF2 +TotalBsmtSF +X1stFlrSF  + GrLivArea + BsmtFullBath + BsmtHalfBath + FullBath + HalfBath + BedroomAbvGr + KitchenAbvGr + TotRmsAbvGrd +Fireplaces + GarageCars+ GarageArea + WoodDeckSF  +X3SsnPorch + ScreenPorch  + PoolArea + MiscVal + replace_fireplaceQu + replace_poolQC+ replace_MiscFeature+ replace_Fence  + replace_GarageType+ replace_GarageFinish+ replace_GarageQual + replace_GarageCond+ replace_BsmtFinType1: + replace_BsmtFinType2+ replace_BsmtQual + replace_BsmtCond+ replace_BsmtExposure+ replace_LotFrontage :+ replace_MasVnrType + replace_MasVnrArea + MSZoning  + LotShape + LandContour + LotConfig + LandSlope + Neighborhood  + Condition1+ BldgType + HouseStyle + RoofStyle  + RoofMatl   + Exterior1st + Exterior2nd + ExterQual+ ExterCond + Foundation+ Heating + HeatingQC + Electrical   +KitchenQual+Functional  + SaleType+SaleCondition - 1")
 ```
 
-# Model Performed Better, at **0.14** RMSE on Leaderboard.
+# Model Performed Better, at **0.15** RMSE on Leaderboard.
 ```{r, eval= TRUE}
-lasso.results <- lasso.pred %>% as.data.frame() %>% exp() 
-lasso.results
+
+projection.mlm.lasso <- lm(eq2  , data = train.clean)
+summary(projection.mlm.lasso)
+testingresults <- as.data.frame(exp(predict(projection.mlm.lasso, test.clean)))
+
+ids <- as.data.frame(select(test, redundant.index))
+predictions.lasso <- cbind(ids, testingresults)
+colnames(predictions.lasso)[2] <- "SalePrice"
+write.csv(predictions.lasso, file = "Lasso_Predictions-Tan Wee Kiang.csv",row.names = F)
 ```
-## To go further..
+## To go further in my page..
 - Can consider ensembling with XGBoosted Trees
-- Using the Keras Package.
+- Support Vector Machines Model (0.16 RMSE)
