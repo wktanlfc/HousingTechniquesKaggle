@@ -17,6 +17,6 @@ Leaderboard RSME as of 2019 : 53rd Percentile
 
 SVM : 0.169 RMSE
 
-Lasso Regression : 0.148 RMSE
+Lasso (Elastic Net) Regression : 0.148 RMSE
 
 Multiple Linear Regression: 0.172 RMSE
