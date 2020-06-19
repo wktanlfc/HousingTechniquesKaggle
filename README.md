@@ -6,7 +6,7 @@ Methods include:
 Principal Component Analysis (R)
 Linear Regression (R)
 Lasso Regression for Variable Selection (R)
-SVM (Python) 
+SVM (R) 
 
 Interactive Slides Presentation done via RevealJS (R)
 
@@ -14,8 +14,9 @@ Future Updates include dplyr updates on column indexing (For better code interpr
 - colwise, rowwise.
 
 Leaderboard RSME as of 2019 : 53rd Percentile
-SVM 1st : 0.169 RMSE
 
-Lasso Regression : 0.142 RMSE
+SVM : 0.169 RMSE
+
+Lasso Regression : 0.148 RMSE
 
 Multiple Linear Regression: 0.172 RMSE
